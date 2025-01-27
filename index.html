@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Advent Calendar</title>
+    <style>
+        /* CSS Styles */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --door-color: rgba(255, 0, 0, 0.8); /* Red door color */
+            --door-border-color: rgba(0, 0, 0, 0.2); /* Slight border shadow effect */
+            --door-text-color: #ffffff; /* White door text color */
+            --door-hover-color: rgba(255, 50, 50, 0.9); /* Brighter red for hover */
+            --open-door-color: rgba(70, 130, 180, 0.9); /* Steel blue for opened doors */
+            --open-door-text-color: #ffffff; /* White text color for opened doors */
+            --disabled-door-color: var(--door-color); /* Gray color for disabled doors */
+            --disabled-door-border-color: rgba(128, 128, 128, 0.5); /* Border color for disabled doors */
+            --background-image: url('background-image.jpg'); /* Default background image */
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-image: var(--background-image);
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            overflow: hidden;
+        }
+
+        .calendar {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .door {
+            position: relative;
+            background-color: var(--door-color);
+            border-radius: 0;
+            border: 2px solid var(--door-border-color);
+            text-align: center;
+            color: var(--door-text-color);
+            font-size: 1.5em;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.3s;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            height: calc(20vh + (Math.random() * 40vh));
+        }
+
+        .door:hover {
+            background-color: var(--door-hover-color);
+            transform: scale(1.05);
+        }
+
+        .door.open {
+            background-color: var(--open-door-color);
+            color: var(--open-door-text-color);
+        }
+
+        .door.disabled {
+            background-color: var(--disabled-door-color);
+            border-color: var(--disabled-door-border-color);
+            cursor: not-allowed;
+        }
+
+        .door-number {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            user-select: none;
+            font-weight: bold;
+            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.7);
+        }
+
+        /* Popup overlay styles */
+        #popup-overlay { display: none; visibility: hidden; opacity: 0; transition: opacity 0.5s, visibility 0s linear 0.5s; }
+
+        #popup-overlay.active { display: block; opacity: 1; visibility: visible; }
+
+        /* Popup content */
+        #popup-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 80%;
+            max-width: 600px;
+            height: 80%;
+            transform: translate(-50%, -50%);
+            background-color: #fff;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #popup-close {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            font-size: 2em;
+            color: #000000;
+            background-color: #ffffff;
+            padding: 5px;
+            border-radius: 0;
+            cursor: pointer;
+            z-index: 1;
+        }
+
+        #popup-iframe, #popup-html-content {
+            width: 100%;
+            height: calc(100% - 40px);
+            border: none;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            .door {
+                font-size: 1em;
+                height: 150px;
+            }
+            #popup-close {
+                font-size: 1.5em;
+            }
+        }
+
+        /* Snowflake styles */
+        .snowflake {
+            position: fixed;
+            top: 0;
+            z-index: 0;
+            user-select: none;
+            pointer-events: none;
+            animation-iteration-count: infinite;
+            animation-play-state: running;
+        }
+
+        .snowflake-content {
+            display: inline-block;
+            color: #ffffff;
+            animation-iteration-count: infinite;
+            animation-play-state: running;
+        }
+
+        @keyframes fall {
+            from {
+                top: -10%;
+            }
+            to {
+                top: 110%;
+            }
+        }
+
+        @keyframes sway {
+            0% {
+                transform: translateX(-20px);
+            }
+            50% {
+                transform: translateX(20px);
+            }
+            100% {
+                transform: translateX(-20px);
+            }
+        }
+
+        @keyframes spin-clockwise {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes spin-counterclockwise {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(-360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="calendar" id="calendar">
+        <!-- Columns will be generated here -->
+    </div>
+
+    <!-- Popup Overlay -->
+    <div id="popup-overlay">
+        <div id="popup-content">
+            <span id="popup-close">&times;</span>
+            <!-- Content will be injected here -->
+        </div>
+    </div>
+
+    <!-- Snowflakes -->
+    <div id="snowflakes"></div>
+
+    <script>
+        // Cheat Mode
+        var cheatMode = false;
+
+        var calendar = document.getElementById("calendar");
+
+        // Variables to hold global settings
+        var globalSettings = {
+            doorColor: '',
+            doorBorderColor: '',
+            doorTextColor: '',
+            doorHoverColor: '',
+            doorDisabledColor: '',
+            openDoorColor: '',
+            backgroundImage: ''
+        };
+
+        // Function to fetch global settings from Google Sheets
+        function fetchGlobalSettings() {
+            // URL of the CSV for Settings
+            var csvUrlSettings = 'settings.csv';
+
+            fetch(csvUrlSettings)
+                .then(response => response.text())
+                .then(csvData => {
+                    parseGlobalSettings(csvData);
+                    applyGlobalStyles();
+                    fetchDoorData(); // After fetching settings, fetch door data
+                })
+                .catch(error => {
+                    console.error('Error fetching global settings:', error);
+                    fetchDoorData(); // If settings fail to load, still fetch door data
+                });
+        }
+
+        // Function to parse global settings CSV
+        function parseGlobalSettings(data) {
+            var lines = data.trim().split('\n');
+            var headers = parseCSVLine(lines[0]);
+
+            for (var i = 1; i < lines.length; i++) {
+                var currentLine = parseCSVLine(lines[i]);
+                var settingName = currentLine[0].replace(/^"|"$/g, '').trim();
+                var value = currentLine[1] ? currentLine[1].replace(/^"|"$/g, '').trim() : '';
+
+                if (settingName === 'doorColor') {
+                    globalSettings.doorColor = value;
+                } else if (settingName === 'doorBorderColor') {
+                    globalSettings.doorBorderColor = value;
+                } else if (settingName === 'doorTextColor') {
+                    globalSettings.doorTextColor = value;
+                } else if (settingName === 'doorHoverColor') {
+                    globalSettings.doorHoverColor = value;
+                } else if (settingName === 'doorDisabledColor') {
+                    globalSettings.doorDisabledColor = value;
+                } else if (settingName === 'openDoorColor') {
+                    globalSettings.openDoorColor = value;
+                } else if (settingName === 'backgroundImage') {
+                    globalSettings.backgroundImage = value;
+                }
+            }
+        }
+
+        // Function to apply global styles
+        function applyGlobalStyles() {
+            if (globalSettings.doorColor) {
+                document.documentElement.style.setProperty('--door-color', globalSettings.doorColor);
+            }
+            if (globalSettings.doorBorderColor) {
+                document.documentElement.style.setProperty('--door-border-color', globalSettings.doorBorderColor);
+            }
+            if (globalSettings.doorTextColor) {
+                document.documentElement.style.setProperty('--door-text-color', globalSettings.doorTextColor);
+            }
+            if (globalSettings.doorHoverColor) {
+                document.documentElement.style.setProperty('--door-hover-color', globalSettings.doorHoverColor);
+            }
+            if (globalSettings.doorDisabledColor) {
+                document.documentElement.style.setProperty('--door-disabled-color', globalSettings.doorDisabledColor);
+            }
+            if (globalSettings.openDoorColor) {
+                document.documentElement.style.setProperty('--open-door-color', globalSettings.openDoorColor);
+            }
+            if (globalSettings.backgroundImage) {
+                document.documentElement.style.setProperty('--background-image', 'url(' + globalSettings.backgroundImage + ')');
+            }
+        }
+
+        // Function to fetch door data from Google Sheets
+        function fetchDoorData() {
+            // URL of the CSV for door data
+            var csvUrlDoors = 'doors.csv';
+
+            fetch(csvUrlDoors)
+                .then(response => response.text())
+                .then(csvData => {
+                    var doors = parseCSV(csvData);
+                    generateCalendar(doors);
+                })
+                .catch(error => {
+                    console.error('Error fetching door data:', error);
+                });
+        }
+
+        // Function to parse CSV data into an array of door objects
+        function parseCSV(data) {
+            var lines = data.trim().split('\n');
+            var result = [];
+
+            // Remove any carriage return characters
+            lines = lines.map(line => line.replace(/\r/g, ''));
+
+            var headers = parseCSVLine(lines[0]);
+
+            for (var i = 1; i < lines.length; i++) {
+                var obj = {};
+                var currentLine = parseCSVLine(lines[i]);
+
+                for (var j = 0; j < headers.length; j++) {
+                    var header = headers[j].replace(/^"|"$/g, '').trim();
+                    var value = currentLine[j] ? currentLine[j].replace(/^"|"$/g, '').trim() : '';
+                    obj[header] = value;
+                }
+                result.push(obj);
+            }
+            return result;
+        }
+
+        function parseCSVLine(text) {
+            var values = [];
+            var inQuotes = false;
+            var value = '';
+
+            for (var i = 0; i < text.length; i++) {
+                var c = text[i];
+
+                if (c === '"' && (i === 0 || text[i - 1] !== '\\')) {
+                    inQuotes = !inQuotes;
+                    continue;
+                }
+
+                if (c === ',' && !inQuotes) {
+                    values.push(value);
+                    value = '';
+                } else {
+                    value += c;
+                }
+            }
+            values.push(value);
+            return values;
+        }
+
+        // Calendar generation function
+        function generateCalendar(doors) {
+            // Clear existing calendar
+            calendar.innerHTML = '';
+
+            // Get current date and adjust for timezone
+            var today = new Date();
+            var timezoneOffset = today.getTimezoneOffset() * 60000;
+            var localTime = new Date(today.getTime() - timezoneOffset);
+
+            // Randomize doors with a fixed seed
+            const seed = 12345;
+            doors.sort((a, b) => seededRandom(seed + a.number) - seededRandom(seed + b.number));
+
+            // Create 5 columns
+            for (let i = 0; i < 5; i++) {
+                var column = document.createElement("div");
+                column.classList.add("column");
+                calendar.appendChild(column);
+            }
+
+            let columns = document.querySelectorAll(".column");
+            let randomColumns = [...columns];
+            randomColumns.sort((a, b) => seededRandom(seed + randomColumns.indexOf(a)) - seededRandom(seed + randomColumns.indexOf(b)));
+
+            doors.forEach(function(doorInfo, index) {
+                var door = document.createElement("div");
+                door.classList.add("door");
+
+                // Set random height for each door
+                door.style.height = (30 + seededRandom(seed + index) * 30) + 'vh';
+
+                var doorNumber = document.createElement("div");
+                doorNumber.classList.add("door-number");
+                doorNumber.innerText = doorInfo.number; // Display full text from 'number' column
+                door.appendChild(doorNumber);
+
+                // Check if the door is available
+                var openDate = new Date(doorInfo.openDate);
+                if (cheatMode || localTime >= openDate) {
+                    // Door is available
+                    door.doorInfo = doorInfo; // Store doorInfo for later use
+                    door.addEventListener('click', openDoor);
+                } else {
+                    // Door is closed
+                    door.classList.add("disabled");
+                }
+
+                let randomColumn = randomColumns[index % randomColumns.length];
+                randomColumn.appendChild(door);
+            });
+        }
+
+        // Seeded random function to ensure consistent random order
+        function seededRandom(seed) {
+            var x = Math.sin(seed) * 10000;
+            return x - Math.floor(x);
+        }
+
+        function openDoor(event) {
+            var door = this;
+            var doorInfo = door.doorInfo;
+
+            // Add 'open' class
+            door.classList.add('open');
+
+            if (doorInfo.openInNewTab && doorInfo.openInNewTab.toLowerCase() === 'true') {
+                window.open(doorInfo.link, '_blank');
+            } else if (doorInfo.htmlContent) {
+                // Display HTML content in popup
+                var contentContainer = document.createElement('div');
+                contentContainer.id = 'popup-html-content';
+                contentContainer.innerHTML = doorInfo.htmlContent;
+                var popupContent = document.getElementById('popup-content');
+                popupContent.innerHTML = '<span id="popup-close">&times;</span>';
+                popupContent.appendChild(contentContainer);
+                document.getElementById('popup-overlay').classList.add('active');
+            } else if (doorInfo.link) {
+                // Load content in iframe
+                var iframe = document.createElement('iframe');
+                iframe.id = 'popup-iframe';
+                iframe.src = doorInfo.link;
+                var popupContent = document.getElementById('popup-content');
+                popupContent.innerHTML = '<span id="popup-close">&times;</span>';
+                popupContent.appendChild(iframe);
+                document.getElementById('popup-overlay').classList.add('active');
+            } else {
+                console.warn('No content available for door number:', doorInfo.number);
+            }
+
+            // Add close event listener for the close button
+            document.getElementById('popup-close').addEventListener('click', function() {
+                document.getElementById('popup-overlay').classList.remove('active');
+            });
+        }
+
+        // Close popup by clicking outside the content area
+        document.getElementById('popup-overlay').addEventListener('click', function(e) {
+            if (e.target === document.getElementById('popup-overlay')) {
+                document.getElementById('popup-overlay').classList.remove('active');
+            }
+        });
+
+        // Cheat key Ctrl + Shift + F
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'f') {
+                cheatMode = true;
+                fetchDoorData(); // Re-fetch data to refresh the calendar
+                alert('Cheat mode activated: All doors are now open!');
+            }
+        });
+
+        // Snowflake creation
+        var snowflakesContainer = document.getElementById('snowflakes');
+        var snowflakeSymbols = ['❄', '❅', '❆'];
+        var snowflakeCount = 30; // Adjusted number of snowflakes
+
+        function createSnowflakes() {
+            for (var i = 0; i < snowflakeCount; i++) {
+                var snowflake = document.createElement('div');
+                snowflake.classList.add('snowflake');
+
+                var snowflakeContent = document.createElement('span');
+                snowflakeContent.classList.add('snowflake-content');
+                snowflakeContent.innerHTML = snowflakeSymbols[Math.floor(Math.random() * snowflakeSymbols.length)];
+
+                snowflake.appendChild(snowflakeContent);
+
+                snowflake.style.left = Math.random() * window.innerWidth + 'px';
+                snowflake.style.top = -10 + '%'; // Start slightly above the viewport
+                snowflake.style.opacity = Math.random();
+                var size = (Math.random() * 10 + 10);
+                snowflakeContent.style.fontSize = size + 'px';
+
+                var fallDuration = (Math.random() * 5) + 5; // 5 - 10 seconds
+
+                var swayDuration = (Math.random() * 3) + 2; // 2 - 5 seconds
+
+                var spinAnimationName = (Math.random() < 0.5) ? 'spin-clockwise' : 'spin-counterclockwise';
+                var spinDuration = (Math.random() * 8) + 4; // 4 - 12 seconds
+
+                // Negative delay to make snowflakes appear mid-fall
+                var fallDelay = -Math.random() * fallDuration;
+
+                snowflake.style.animation = `fall ${fallDuration}s linear ${fallDelay}s infinite,
+                                             sway ${swayDuration}s ease-in-out infinite`;
+
+                snowflakeContent.style.animation = `${spinAnimationName} ${spinDuration}s linear infinite`;
+
+                snowflakesContainer.appendChild(snowflake);
+            }
+        }
+
+        createSnowflakes();
+
+        // Fetch global settings on page load
+        fetchGlobalSettings();
+    </script>
+</body>
+</html>
